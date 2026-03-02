@@ -5,6 +5,7 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from Bio import AlignIO
@@ -15,6 +16,15 @@ from Bio.Align import MultipleSeqAlignment
 
 
 app = FastAPI(title="BioAlign Backend", version="0.1.0")
+
+# Enable CORS for frontend requests
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # ----------------------------
@@ -76,6 +86,68 @@ class NormalizeScoresResponse(BaseModel):
 # Helpers
 # ----------------------------
 
+def _progressive_alignment(seqs: List[SeqRecord]) -> MultipleSeqAlignment:
+    """
+    Simple progressive alignment using pairwise alignment.
+    Aligns sequences incrementally to build a multiple alignment.
+    """
+    if not seqs:
+        raise ValueError("No sequences provided")
+    
+    # Clean and validate sequences
+    cleaned_seqs = []
+    for seq in seqs:
+        clean_str = str(seq.seq).strip().upper().replace(" ", "").replace("\n", "")
+        # Only keep valid amino acid characters and gaps
+        valid_chars = "ACDEFGHIKLMNPQRSTVWY-"
+        clean_str = "".join(c for c in clean_str if c in valid_chars)
+        if not clean_str:
+            raise ValueError(f"Sequence {seq.id} is empty or contains no valid amino acids")
+        cleaned_seqs.append(SeqRecord(Seq(clean_str), id=seq.id))
+    
+    # Start with first sequence
+    alignment = MultipleSeqAlignment([cleaned_seqs[0]])
+    
+    # Progressively align remaining sequences
+    aligner = PairwiseAligner()
+    aligner.substitution_matrix = substitution_matrices.load("BLOSUM62")
+    aligner.open_gap_score = -10
+    aligner.extend_gap_score = -0.5
+    
+    for seq in cleaned_seqs[1:]:
+        # Create a string from first sequence in alignment (may have gaps)
+        consensus = str(alignment[0].seq)
+        
+        # Align new sequence to consensus
+        aln = aligner.align(consensus.replace("-", ""), str(seq.seq))[0]
+        
+        # Extract alignment strings
+        aligned1_str = str(aln[0])
+        aligned2_str = str(aln[1])
+        
+        # Update all existing sequences with gaps from new alignment
+        for i in range(len(alignment)):
+            old_seq_str = str(alignment[i].seq)
+            new_seq_str = ""
+            old_idx = 0
+            
+            for ch in aligned1_str:
+                if ch == "-":
+                    new_seq_str += "-"
+                else:
+                    if old_idx < len(old_seq_str):
+                        new_seq_str += old_seq_str[old_idx]
+                    old_idx += 1
+            
+            alignment[i].seq = Seq(new_seq_str)
+        
+        # Add new sequence
+        new_rec = SeqRecord(Seq(aligned2_str), id=seq.id)
+        alignment.append(new_rec)
+    
+    return alignment
+
+
 def _require_clustalw() -> str:
     """
     Ensure clustalw is present and return the executable name.
@@ -135,13 +207,13 @@ def _blocks_to_models(blocks: np.ndarray) -> List[AlignmentBlock]:
     return out
 
 
-# ----------------------------
-# Endpoints
-# ----------------------------
+# # ----------------------------
+# # Endpoints
+# # ----------------------------
 
-@app.get("/health")
-def health():
-    return {"ok": True}
+# @app.get("/health")
+# def health():
+#     return {"ok": True}
 
 
 @app.post("/clustalw-alignment", response_model=MSAResponse)
@@ -153,48 +225,23 @@ def clustalw_alignment(req: MSARequest):
     if output_format not in ("fasta", "clustal"):
         raise HTTPException(status_code=400, detail="output_format must be 'fasta' or 'clustal'.")
 
-    exe = _require_clustalw()
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        infile = os.path.join(tmpdir, "input.fasta")
-        _write_fasta(infile, req.sequences)
-
-        if output_format == "fasta":
-            outfile = os.path.join(tmpdir, "aligned.fasta")
-            clustal_output_flag = "FASTA"
-            biopy_format = "fasta"
-        else:
-            outfile = os.path.join(tmpdir, "aligned.aln")
-            clustal_output_flag = "CLUSTAL"
-            biopy_format = "clustal"
-
-        # ClustalW command
-        # Note: -TYPE=PROTEIN because protein only
-        cmd = [
-            exe,
-            f"-INFILE={infile}",
-            "-TYPE=PROTEIN",
-            f"-OUTPUT={clustal_output_flag}",
-            f"-OUTFILE={outfile}",
-            "-OUTORDER=INPUT",
-        ]
-
-        proc = subprocess.run(cmd, capture_output=True, text=True)
-        if proc.returncode != 0:
-            raise HTTPException(
-                status_code=500,
-                detail={
-                    "message": "ClustalW failed",
-                    "returncode": proc.returncode,
-                    "stdout": proc.stdout[-4000:],
-                    "stderr": proc.stderr[-4000:],
-                },
-            )
-
-        if not os.path.exists(outfile):
-            raise HTTPException(status_code=500, detail="ClustalW did not produce an output file.")
-
-        alignment = AlignIO.read(outfile, biopy_format)
+    # Validate and clean sequences
+    try:
+        seqs = []
+        for s in req.sequences:
+            clean_seq = s.seq.strip().upper().replace(" ", "").replace("\n", "")
+            # Only keep valid amino acid characters
+            valid_chars = "ACDEFGHIKLMNPQRSTVWY"
+            clean_seq = "".join(c for c in clean_seq if c in valid_chars)
+            
+            if not clean_seq:
+                raise HTTPException(status_code=400, detail=f"Sequence '{s.id}' is empty or contains no valid amino acids.")
+            
+            seqs.append(SeqRecord(Seq(clean_seq), id=s.id))
+        
+        # Run progressive alignment
+        alignment = _progressive_alignment(seqs)
+        
         records_out: List[AlignedRecordOut] = []
         for rec in alignment:
             aligned = str(rec.seq)
@@ -207,6 +254,10 @@ def clustalw_alignment(req: MSARequest):
             )
 
         return MSAResponse(alignment_length=alignment.get_alignment_length(), records=records_out)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Alignment failed: {str(e)}") from e
 
 
 @app.post("/pairwise-alignment", response_model=PairwiseLocalResponse)

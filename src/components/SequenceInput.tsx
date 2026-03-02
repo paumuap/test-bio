@@ -5,9 +5,10 @@ interface Props {
   label: string
   value: string
   onChange: (val: string) => void
+  id?: string
 }
 
-export function SequenceInput({ label, value, onChange }: Props) {
+export function SequenceInput({ label, value, onChange, id = 'seq-textarea' }: Props) {
   const [uniprotId, setUniprotId] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -28,7 +29,7 @@ export function SequenceInput({ label, value, onChange }: Props) {
 
   return (
     <div className="seq-input-block">
-      <label className="seq-label">{label}</label>
+      <label htmlFor={id} className="seq-label">{label}</label>
 
       <div className="uniprot-row">
         <input
@@ -50,6 +51,7 @@ export function SequenceInput({ label, value, onChange }: Props) {
       {error && <p className="error-msg">{error}</p>}
 
       <textarea
+        id={id}
         className="seq-textarea"
         placeholder="…or paste amino acid sequence directly (e.g. MVHLTPEEK…)"
         value={value}

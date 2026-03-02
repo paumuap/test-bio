@@ -83,7 +83,7 @@ export default function App() {
       gapExtend,
     }
 
-    workerRef.current?.postMessage(params)
+    workerRef.current?.postMessage({ type: 'align', params })
   }
 
   return (
@@ -114,9 +114,9 @@ export default function App() {
         <MsaPanel backendBaseUrl="http://localhost:8000" />
       ) : (
         <>
-          <SequenceInput label="Sequence 1" value={seq1} onChange={setSeq1} />
+          <SequenceInput label="Sequence 1" value={seq1} onChange={setSeq1} id="seq-textarea-1" />
 
-          <SequenceInput label="Sequence 2" value={seq2} onChange={setSeq2} />
+          <SequenceInput label="Sequence 2" value={seq2} onChange={setSeq2} id="seq-textarea-2" />
 
           <ParamsPanel
             mode={mode}
@@ -131,7 +131,7 @@ export default function App() {
 
           {error && <div style={{ color: 'crimson', whiteSpace: 'pre-wrap' }}>{error}</div>}
 
-          {result && <ResultPanel result={result} />}
+          {result && <ResultPanel result={result} mode={mode} />}
         </>
       )}
     </div>

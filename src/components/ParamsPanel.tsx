@@ -116,11 +116,13 @@ function NumberField({
   step: number
   disabled?: boolean
 }) {
+  const inputId = `param-range-${label.toLowerCase().replace(/\s+/g, '-')}`
   return (
     <div className="param-field">
-      <label className="param-label">{label}</label>
+      <label htmlFor={inputId} className="param-label">{label}</label>
       <div className="param-input-row">
         <input
+          id={inputId}
           type="range"
           className="param-slider"
           min={min}

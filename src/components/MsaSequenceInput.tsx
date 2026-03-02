@@ -4,7 +4,6 @@ import { fetchUniProt } from '../utils/uniprot'
 export type MsaRow = {
   id: string
   seq: string
-  submitted: boolean
 }
 
 interface Props {
@@ -34,12 +33,10 @@ export function MsaSequenceInput({
     setError('')
     try {
       const seq = await fetchUniProt(uniprotId)
-      // Set ID to accession (uppercased) and set sequence, but keep submitted=false until user clicks Submit
       onChange({
         ...row,
         id: uniprotId.trim().toUpperCase(),
         seq,
-        submitted: false,
       })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Fetch failed')
@@ -48,44 +45,11 @@ export function MsaSequenceInput({
     }
   }
 
-  function handleSubmit() {
-    const id = row.id.trim()
-    const seq = row.seq.trim()
-    if (!id || !seq) {
-      setError('Please provide both Sequence ID and sequence before submitting.')
-      return
-    }
-    setError('')
-    onChange({ ...row, id, seq, submitted: true })
-  }
-
   return (
     <div className="seq-input-block">
       <label className="seq-label">Sequence {index + 1}</label>
 
-      {/* Sequence ID row */}
-      <div className="uniprot-row" style={{ marginBottom: 8 }}>
-        <input
-          className="input-text"
-          placeholder="Sequence ID (e.g. P68871)"
-          value={row.id}
-          disabled={disabled}
-          onChange={(e) => onChange({ ...row, id: e.target.value.toUpperCase(), submitted: false })}
-        />
-        <button
-          className="btn-fetch"
-          type="button"
-          onClick={handleSubmit}
-          disabled={disabled || !row.id.trim() || !row.seq.trim()}
-          style={{
-            opacity: row.submitted ? 0.85 : 1,
-          }}
-        >
-          {row.submitted ? 'Submitted' : 'Submit'}
-        </button>
-      </div>
-
-      {/* UniProt row (same style as pairwise) */}
+      {/* UniProt fetch row */}
       <div className="uniprot-row">
         <input
           className="input-text"
@@ -116,7 +80,6 @@ export function MsaSequenceInput({
           onChange({
             ...row,
             seq: e.target.value.toUpperCase().replace(/[^A-Z]/g, ''),
-            submitted: false,
           })
         }
         spellCheck={false}
