@@ -35,13 +35,43 @@ html, body, #root {
   display: flex;
   flex-direction: column;
 }
-
-/* ── Header ── */
 .app-header {
-  border-bottom: 1px solid var(--border);
-  background: var(--bg2);
-  padding: 24px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
 }
+
+.app-title {
+  margin: 0;
+}
+
+.view-toggle {
+  display: inline-flex;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.view-toggle-btn {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.view-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.view-toggle-btn.active {
+  background: rgba(255, 255, 255, 0.14);
+}
+
 .header-inner {
   max-width: 1400px;
   margin: 0 auto;
@@ -255,8 +285,10 @@ html, body, #root {
   font-family: var(--mono);
 }
 
+
+
 /* ── Run button ── */
-.btn-align {
+.align-btn {
   width: 100%;
   background: var(--accent);
   color: #000;
@@ -274,10 +306,10 @@ html, body, #root {
   justify-content: center;
   gap: 10px;
 }
-.btn-align:disabled { opacity: 0.4; cursor: not-allowed; }
-.btn-align:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
-.btn-align:active:not(:disabled) { transform: translateY(0); }
-.btn-align.running { background: var(--bg3); color: var(--accent); border: 1px solid var(--accent); }
+.align-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.align-btn:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+.align-btn:active:not(:disabled) { transform: translateY(0); }
+.align-btn.running { background: var(--bg3); color: var(--accent); border: 1px solid var(--accent); }
 
 /* ── Spinner ── */
 .spinner {

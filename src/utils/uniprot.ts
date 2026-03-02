@@ -4,18 +4,24 @@
  */
 export async function fetchUniProt(accessionId: string): Promise<string> {
   const id = accessionId.trim().toUpperCase()
-  const url = `https://www.uniprot.org/uniprot/${id}.fasta`
+  const url = `https://rest.uniprot.org/uniprotkb/${encodeURIComponent(id)}.fasta`
 
-  const res = await fetch(url)
+
+  const res = await fetch(url, {
+    headers: { Accept: 'text/plain' },
+  })
+
   if (!res.ok) {
-    throw new Error(`UniProt fetch failed for "${id}": ${res.status} ${res.statusText}`)
+    const body = await res.text().catch(() => '')
+    throw new Error(
+      `UniProt fetch failed for "${id}": ${res.status} ${res.statusText}\n${body}`
+    )
   }
 
   const fasta = await res.text()
-  // Strip the header line(s) and join sequence lines
-  const lines = fasta.split('\n')
-  const seq = lines
-    .filter(l => !l.startsWith('>'))
+  const seq = fasta
+    .split('\n')
+    .filter((l) => l && !l.startsWith('>'))
     .join('')
     .trim()
 

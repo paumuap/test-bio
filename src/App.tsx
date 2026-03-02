@@ -2,13 +2,20 @@ import { useEffect, useRef, useState } from 'react'
 import { SequenceInput } from './components/SequenceInput'
 import { ParamsPanel } from './components/ParamsPanel'
 import { ResultPanel } from './components/ResultPanel'
+import { MsaPanel } from './components/MsaPanel'
 import type { AlignmentMode, AlignmentParams, AlignmentResult, WorkerResponse } from './types/alignment'
 import './App.css'
 
-const EXAMPLE_SEQ1 = 'MVHLTPEEKSAVTALWGKVNVDEVGGEALGRLLVVYPWTQRFFESFGDLSTPDAVMGNPKVKAHGKKVLGAFSDGLAHLDNLKGTFATLSELHCDKLHVDPENFRLLGNVLVCVLAHHFGKEFTPPVQAAYQKVVAGVANALAHKYH'
-const EXAMPLE_SEQ2 = 'MGLSDGEWQLVLNVWGKVEADIPGHGQEVLIRLFKGHPETLEKFDKFKHLKSEDEMKASEDLKKHGATVLTALGGILKKKGHHEAEIKPLAQSHATKHKIPVKYLEFISECIIQVLQSKHPGDFGADAQGAMNKALELFRKDMASNYKELGFQG'
+const EXAMPLE_SEQ1 =
+  'MVHLTPEEKSAVTALWGKVNVDEVGGEALGRLLVVYPWTQRFFESFGDLSTPDAVMGNPKVKAHGKKVLGAFSDGLAHLDNLKGTFATLSELHCDKLHVDPENFRLLGNVLVCVLAHHFGKEFTPPVQAAYQKVVAGVANALAHKYH'
+const EXAMPLE_SEQ2 =
+  'MGLSDGEWQLVLNVWGKVEADIPGHGQEVLIRLFKGHPETLEKFDKFKHLKSEDEMKASEDLKKHGATVLTALGGILKKKGHHEAEIKPLAQSHATKHKIPVKYLEFISECIIQVLQSKHPGDFGADAQGAMNKALELFRKDMASNYKELGFQG'
+
+type ViewMode = 'pairwise' | 'msa'
 
 export default function App() {
+  const [viewMode, setViewMode] = useState<ViewMode>('pairwise')
+
   const [seq1, setSeq1] = useState('')
   const [seq2, setSeq2] = useState('')
   const [mode, setMode] = useState<AlignmentMode>('global')
@@ -25,10 +32,10 @@ export default function App() {
 
   // Boot Web Worker once
   useEffect(() => {
-    workerRef.current = new Worker(
-      new URL('./workers/alignmentWorker.ts', import.meta.url),
-      { type: 'module' }
-    )
+    workerRef.current = new Worker(new URL('./workers/alignmentWorker.ts', import.meta.url), {
+      type: 'module',
+    })
+
     workerRef.current.onmessage = (e: MessageEvent<WorkerResponse>) => {
       setRunning(false)
       if (e.data.type === 'result') {
@@ -38,6 +45,7 @@ export default function App() {
         setError(e.data.message)
       }
     }
+
     return () => workerRef.current?.terminate()
   }, [])
 
@@ -52,86 +60,80 @@ export default function App() {
   function handleAlign() {
     const s1 = seq1.trim()
     const s2 = seq2.trim()
-    if (!s1 || !s2) { setError('Please provide both sequences.'); return }
-    if (s1.length > 2000 || s2.length > 2000) { setError('Sequences must be ≤ 2000 residues for browser alignment.'); return }
+    if (!s1 || !s2) {
+      setError('Please provide both sequences.')
+      return
+    }
+    if (s1.length > 2000 || s2.length > 2000) {
+      setError('Sequences must be ≤ 2000 residues for browser alignment.')
+      return
+    }
 
     setError('')
     setRunning(true)
     setResult(null)
 
-    const params: AlignmentParams = { seq1: s1, seq2: s2, mode, matchScore, mismatchScore, gapOpen, gapExtend }
-    workerRef.current?.postMessage({ type: 'align', params })
-  }
+    const params: AlignmentParams = {
+      seq1: s1,
+      seq2: s2,
+      mode,
+      matchScore,
+      mismatchScore,
+      gapOpen,
+      gapExtend,
+    }
 
-  function loadExample() {
-    setSeq1(EXAMPLE_SEQ1)
-    setSeq2(EXAMPLE_SEQ2)
-    setResult(null)
+    workerRef.current?.postMessage(params)
   }
-
-  const canAlign = seq1.trim().length > 0 && seq2.trim().length > 0 && !running
 
   return (
-    <div className="app">
-      {/* Header */}
-      <header className="app-header">
-        <div className="header-inner">
-          <div className="logo">
-            <span className="logo-icon">⬡</span>
-            <span className="logo-text">BioAlign</span>
-          </div>
-          <p className="header-sub">Pairwise sequence alignment in your browser</p>
-          <button className="btn-example" onClick={loadExample}>Load example (Hb β / Myoglobin)</button>
-        </div>
-      </header>
+    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+      <div className="app-header">
+        <h1 className="app-title">BioAlign</h1>
 
-      <main className="main-content">
-        {/* Left column: inputs + params */}
-        <div className="left-col">
-          <section className="card">
-            <SequenceInput label="Sequence 1" value={seq1} onChange={setSeq1} />
-          </section>
-          <section className="card">
-            <SequenceInput label="Sequence 2" value={seq2} onChange={setSeq2} />
-          </section>
-          <section className="card">
-            <ParamsPanel
-              mode={mode}
-              matchScore={matchScore}
-              mismatchScore={mismatchScore}
-              gapOpen={gapOpen}
-              gapExtend={gapExtend}
-              onChange={handleParamChange}
-            />
-          </section>
-
+        <div className="view-toggle">
           <button
-            className={`btn-align ${running ? 'running' : ''}`}
-            onClick={handleAlign}
-            disabled={!canAlign}
+            type="button"
+            className={`view-toggle-btn ${viewMode === 'pairwise' ? 'active' : ''}`}
+            onClick={() => setViewMode('pairwise')}
           >
-            {running
-              ? <><span className="spinner" /> Aligning…</>
-              : '⟶ Run Alignment'}
+            Pairwise
           </button>
 
-          {error && <p className="error-msg">{error}</p>}
+          <button
+            type="button"
+            className={`view-toggle-btn ${viewMode === 'msa' ? 'active' : ''}`}
+            onClick={() => setViewMode('msa')}
+          >
+            Multiple (ClustalW)
+          </button>
         </div>
+      </div>
 
-        {/* Right column: result */}
-        <div className="right-col">
-          {result
-            ? <ResultPanel result={result} mode={mode} />
-            : (
-              <div className="empty-state">
-                <span className="empty-icon">◈</span>
-                <p>Alignment result will appear here.</p>
-                <p className="empty-sub">Runs in a Web Worker — UI stays responsive.</p>
-              </div>
-            )
-          }
-        </div>
-      </main>
+      {viewMode === 'msa' ? (
+        <MsaPanel backendBaseUrl="http://localhost:8000" />
+      ) : (
+        <>
+          <SequenceInput label="Sequence 1" value={seq1} onChange={setSeq1} />
+
+          <SequenceInput label="Sequence 2" value={seq2} onChange={setSeq2} />
+
+          <ParamsPanel
+            mode={mode}
+            matchScore={matchScore}
+            mismatchScore={mismatchScore}
+            gapOpen={gapOpen}
+            gapExtend={gapExtend}
+            onChange={handleParamChange}
+            onAlign={handleAlign}
+            running={running}
+          />
+
+          {error && <div style={{ color: 'crimson', whiteSpace: 'pre-wrap' }}>{error}</div>}
+
+          {result && <ResultPanel result={result} />}
+        </>
+      )}
     </div>
   )
 }
